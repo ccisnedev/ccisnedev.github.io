@@ -231,7 +231,7 @@ export default {
       ctx.lineWidth = layer.width * scale;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.setLineDash([totalLength]);
+      ctx.setLineDash([totalLength, totalLength]);
       ctx.lineDashOffset = dashOffset;
       ctx.stroke();
       ctx.restore();

@@ -86,6 +86,19 @@ describe('void theme', () => {
     expect(() => voidTheme.resize(1024, 768)).not.toThrow();
   });
 
+  it('uses dash pattern [length, length] to prevent second stroke fragment', () => {
+    voidTheme.init(canvas, ctx);
+    let dashPattern = null;
+    ctx.setLineDash = (pattern) => { dashPattern = pattern; };
+    // Trigger ensō draw at partial progress
+    voidTheme.frame(0);     // start time
+    voidTheme.frame(2000);  // 2s in = ensō is drawing
+    // Dash pattern must have TWO values (dash + gap both equal totalLength)
+    expect(dashPattern).not.toBeNull();
+    expect(dashPattern.length).toBe(2);
+    expect(dashPattern[0]).toBe(dashPattern[1]);
+  });
+
   it('destroy does not throw', () => {
     voidTheme.init(canvas, ctx);
     expect(() => voidTheme.destroy()).not.toThrow();
