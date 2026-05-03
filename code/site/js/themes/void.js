@@ -161,25 +161,26 @@ export default {
       const tan0 = angle0 + (Math.PI / 2) * dir;
       const tan1 = angle1 + (Math.PI / 2) * dir;
 
-      // Shorten last segment to ~75% to leave a gap
-      const lengthFactor = i === 3 ? 0.55 : 1;
-
-      const cp1x = a0.x + Math.cos(tan0) * k * lengthFactor + jitter();
-      const cp1y = a0.y + Math.sin(tan0) * k * lengthFactor + jitter();
-      const cp2x = a1.x - Math.cos(tan1) * k * lengthFactor + jitter();
-      const cp2y = a1.y - Math.sin(tan1) * k * lengthFactor + jitter();
-
-      // End point (shorten last segment)
-      let endX, endY;
+      // End point: last segment stops at ~90% of arc (small gap)
+      let endAngle, endX, endY;
       if (i === 3) {
-        // Stop at ~75% of this segment arc
-        const endAngle = angle0 + segmentAngle * 0.75;
+        endAngle = angle0 + segmentAngle * 0.92;
         endX = cx + Math.cos(endAngle) * r + jitter();
         endY = cy + Math.sin(endAngle) * r + jitter();
       } else {
+        endAngle = angle1;
         endX = a1.x + jitter();
         endY = a1.y + jitter();
       }
+
+      // Control points: keep full curvature even on last segment
+      const cp1x = a0.x + Math.cos(tan0) * k + jitter();
+      const cp1y = a0.y + Math.sin(tan0) * k + jitter();
+
+      // For last segment, target the actual endpoint's tangent
+      const tanEnd = (i === 3 ? endAngle : angle1) + (Math.PI / 2) * dir;
+      const cp2x = endX - Math.cos(tanEnd) * k * (i === 3 ? 0.85 : 1) + jitter();
+      const cp2y = endY - Math.sin(tanEnd) * k * (i === 3 ? 0.85 : 1) + jitter();
 
       segments.push({ cp1x, cp1y, cp2x, cp2y, x: endX, y: endY });
     }
