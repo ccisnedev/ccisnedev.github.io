@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import voidTheme from '../js/themes/void.js';
 
 describe('void theme', () => {
@@ -97,5 +97,60 @@ describe('void theme', () => {
     ctx.stroke = () => { stroked = true; };
     voidTheme.reducedMotion();
     expect(stroked).toBe(true);
+  });
+
+  describe('ensō start point and direction', () => {
+    it('start point is near 9 o\'clock (left side of circle)', () => {
+      voidTheme.init(canvas, ctx);
+      const { start, cx, r } = voidTheme._ensoPath;
+      // At 9 o'clock: x ≈ cx - r, y ≈ cy
+      // Allow ±15% of radius for jitter + angular variation
+      const tolerance = r * 0.3;
+      expect(start.x).toBeLessThan(cx - r * 0.5);        // clearly left of center
+      expect(start.x).toBeGreaterThan(cx - r - tolerance); // not too far left
+    });
+
+    it('start angle varies slightly between inits (not exact 9:00)', () => {
+      // Run multiple inits and collect start Y positions
+      const yValues = new Set();
+      for (let i = 0; i < 20; i++) {
+        voidTheme.init(canvas, ctx);
+        yValues.add(Math.round(voidTheme._ensoPath.start.y));
+      }
+      // Should have some variation (not all identical)
+      expect(yValues.size).toBeGreaterThan(1);
+    });
+
+    it('is clockwise 90% of the time (statistical)', () => {
+      let clockwiseCount = 0;
+      const runs = 200;
+      for (let i = 0; i < runs; i++) {
+        voidTheme.init(canvas, ctx);
+        if (voidTheme._ensoPath.clockwise) clockwiseCount++;
+      }
+      // Expect ~90% ± reasonable tolerance for randomness
+      // With 200 runs, 90% = 180. Allow [150, 200] to avoid flaky test.
+      expect(clockwiseCount).toBeGreaterThan(150);
+      expect(clockwiseCount).toBeLessThanOrEqual(200);
+    });
+
+    it('can occasionally be counter-clockwise', () => {
+      // Force enough inits that at least one should be CCW (10% chance each)
+      // With 100 runs, P(all CW) = 0.9^100 ≈ 0.00003 — negligible
+      let hasCCW = false;
+      for (let i = 0; i < 100; i++) {
+        voidTheme.init(canvas, ctx);
+        if (!voidTheme._ensoPath.clockwise) {
+          hasCCW = true;
+          break;
+        }
+      }
+      expect(hasCCW).toBe(true);
+    });
+
+    it('exposes clockwise property on the ensō path', () => {
+      voidTheme.init(canvas, ctx);
+      expect(typeof voidTheme._ensoPath.clockwise).toBe('boolean');
+    });
   });
 });

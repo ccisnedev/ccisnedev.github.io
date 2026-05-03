@@ -121,47 +121,76 @@ export default {
     // Small jitter for imperfection (hand-drawn feel)
     const jitter = () => (Math.random() - 0.5) * r * 0.06;
 
+    // Direction: 90% clockwise, 10% counter-clockwise
+    const clockwise = Math.random() < 0.9;
+
+    // Start at ~9 o'clock (π radians) with slight angular variation (±15°)
+    const angleVariation = (Math.random() - 0.5) * (Math.PI / 6); // ±15°
+    const startAngle = Math.PI + angleVariation; // ~9 o'clock
+
     // Standard 4-segment Bézier circle approximation
     // Magic number: (4/3)*tan(π/8) ≈ 0.5522847498
     const k = 0.5522847498 * r;
 
-    // We draw ~93% of the circle (gap at top-left, ~10 o'clock)
-    // Segments: bottom → right → top → left (skip last ~7%)
-    // Start at bottom-left (7 o'clock position)
-    const segments = [
-      // Segment 1: bottom to right
-      {
-        cp1x: cx + k + jitter(), cp1y: cy + r + jitter(),
-        cp2x: cx + r + jitter(), cp2y: cy + k + jitter(),
-        x: cx + r + jitter(), y: cy + jitter(),
-      },
-      // Segment 2: right to top
-      {
-        cp1x: cx + r + jitter(), cp1y: cy - k + jitter(),
-        cp2x: cx + k + jitter(), cp2y: cy - r + jitter(),
-        x: cx + jitter(), y: cy - r + jitter(),
-      },
-      // Segment 3: top to left
-      {
-        cp1x: cx - k + jitter(), cp1y: cy - r + jitter(),
-        cp2x: cx - r + jitter(), cp2y: cy - k + jitter(),
-        x: cx - r + jitter(), y: cy + jitter(),
-      },
-      // Segment 4: left to bottom (partial — stop at ~75% to leave gap)
-      {
-        cp1x: cx - r + jitter(), cp1y: cy + k * 0.75 + jitter(),
-        cp2x: cx - k * 0.85 + jitter(), cp2y: cy + r * 0.85 + jitter(),
-        x: cx - r * 0.4 + jitter(), y: cy + r * 0.9 + jitter(),
-      },
-    ];
+    // Direction multiplier: +1 for CW, -1 for CCW
+    const dir = clockwise ? 1 : -1;
 
-    // Start point: bottom of circle (6 o'clock shifted slightly toward 7)
+    // Generate 4 points around the circle from the start angle
+    // Each segment covers ~90°. We draw ~93% (gap near the end).
+    const segmentAngle = (Math.PI / 2) * dir;
+
+    // The 5 anchor points on the circle (start + 4 segment endpoints)
+    const anchors = [];
+    for (let i = 0; i <= 4; i++) {
+      const angle = startAngle + i * segmentAngle;
+      anchors.push({
+        x: cx + Math.cos(angle) * r,
+        y: cy + Math.sin(angle) * r,
+      });
+    }
+
+    // Build cubic Bézier segments between consecutive anchors
+    const segments = [];
+    for (let i = 0; i < 4; i++) {
+      const a0 = anchors[i];
+      const a1 = anchors[i + 1];
+      const angle0 = startAngle + i * segmentAngle;
+      const angle1 = startAngle + (i + 1) * segmentAngle;
+
+      // Tangent direction at each point (perpendicular to radius)
+      const tan0 = angle0 + (Math.PI / 2) * dir;
+      const tan1 = angle1 + (Math.PI / 2) * dir;
+
+      // Shorten last segment to ~75% to leave a gap
+      const lengthFactor = i === 3 ? 0.55 : 1;
+
+      const cp1x = a0.x + Math.cos(tan0) * k * lengthFactor + jitter();
+      const cp1y = a0.y + Math.sin(tan0) * k * lengthFactor + jitter();
+      const cp2x = a1.x - Math.cos(tan1) * k * lengthFactor + jitter();
+      const cp2y = a1.y - Math.sin(tan1) * k * lengthFactor + jitter();
+
+      // End point (shorten last segment)
+      let endX, endY;
+      if (i === 3) {
+        // Stop at ~75% of this segment arc
+        const endAngle = angle0 + segmentAngle * 0.75;
+        endX = cx + Math.cos(endAngle) * r + jitter();
+        endY = cy + Math.sin(endAngle) * r + jitter();
+      } else {
+        endX = a1.x + jitter();
+        endY = a1.y + jitter();
+      }
+
+      segments.push({ cp1x, cp1y, cp2x, cp2y, x: endX, y: endY });
+    }
+
+    // Start point at the start angle
     const start = {
-      x: cx + jitter(),
-      y: cy + r + jitter(),
+      x: cx + Math.cos(startAngle) * r + jitter(),
+      y: cy + Math.sin(startAngle) * r + jitter(),
     };
 
-    return { start, curves: segments, cx, cy, r };
+    return { start, curves: segments, cx, cy, r, clockwise };
   },
 
   _estimateLength() {
