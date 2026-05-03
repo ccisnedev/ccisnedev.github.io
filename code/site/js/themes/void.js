@@ -118,40 +118,50 @@ export default {
     const cy = this._h * 0.46;
     const r = Math.min(this._w, this._h) * 0.18;
 
-    // Generate imperfect control points (±jitter)
-    const jitter = () => (Math.random() - 0.5) * r * 0.08;
+    // Small jitter for imperfection (hand-drawn feel)
+    const jitter = () => (Math.random() - 0.5) * r * 0.06;
 
-    // Path: 4 cubic Béziers forming ~340° of a circle (gap at 10 o'clock)
-    // Starting at ~10 o'clock (where gap ends), going clockwise
-    const startAngle = (210 * Math.PI) / 180; // 10 o'clock = 210°
-    const points = [];
+    // Standard 4-segment Bézier circle approximation
+    // Magic number: (4/3)*tan(π/8) ≈ 0.5522847498
+    const k = 0.5522847498 * r;
 
-    for (let i = 0; i < 5; i++) {
-      const angle = startAngle + (i / 5) * (Math.PI * 2 * 0.94); // 94% of circle = gap
-      points.push({
-        x: cx + Math.cos(angle) * r + jitter(),
-        y: cy + Math.sin(angle) * r + jitter(),
-      });
-    }
+    // We draw ~93% of the circle (gap at top-left, ~10 o'clock)
+    // Segments: bottom → right → top → left (skip last ~7%)
+    // Start at bottom-left (7 o'clock position)
+    const segments = [
+      // Segment 1: bottom to right
+      {
+        cp1x: cx + k + jitter(), cp1y: cy + r + jitter(),
+        cp2x: cx + r + jitter(), cp2y: cy + k + jitter(),
+        x: cx + r + jitter(), y: cy + jitter(),
+      },
+      // Segment 2: right to top
+      {
+        cp1x: cx + r + jitter(), cp1y: cy - k + jitter(),
+        cp2x: cx + k + jitter(), cp2y: cy - r + jitter(),
+        x: cx + jitter(), y: cy - r + jitter(),
+      },
+      // Segment 3: top to left
+      {
+        cp1x: cx - k + jitter(), cp1y: cy - r + jitter(),
+        cp2x: cx - r + jitter(), cp2y: cy - k + jitter(),
+        x: cx - r + jitter(), y: cy + jitter(),
+      },
+      // Segment 4: left to bottom (partial — stop at ~75% to leave gap)
+      {
+        cp1x: cx - r + jitter(), cp1y: cy + k * 0.75 + jitter(),
+        cp2x: cx - k * 0.85 + jitter(), cp2y: cy + r * 0.85 + jitter(),
+        x: cx - r * 0.4 + jitter(), y: cy + r * 0.9 + jitter(),
+      },
+    ];
 
-    // Build cubic Béziers between consecutive points
-    const curves = [];
-    for (let i = 0; i < points.length - 1; i++) {
-      const p0 = points[i];
-      const p1 = points[i + 1];
-      const midAngle = startAngle + ((i + 0.5) / 5) * (Math.PI * 2 * 0.94);
-      const cpDist = r * 0.55; // magic number for circle approximation
-      curves.push({
-        cp1x: p0.x + Math.cos(midAngle - 0.3) * cpDist + jitter(),
-        cp1y: p0.y + Math.sin(midAngle - 0.3) * cpDist + jitter(),
-        cp2x: p1.x + Math.cos(midAngle + 0.3) * -cpDist + jitter(),
-        cp2y: p1.y + Math.sin(midAngle + 0.3) * -cpDist + jitter(),
-        x: p1.x,
-        y: p1.y,
-      });
-    }
+    // Start point: bottom of circle (6 o'clock shifted slightly toward 7)
+    const start = {
+      x: cx + jitter(),
+      y: cy + r + jitter(),
+    };
 
-    return { start: points[0], curves, cx, cy, r };
+    return { start, curves: segments, cx, cy, r };
   },
 
   _estimateLength() {
