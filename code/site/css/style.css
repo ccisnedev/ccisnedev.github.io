@@ -113,3 +113,59 @@ body[data-theme="void"] {
   --bar-hover-border: rgba(255, 255, 255, 0.3);
 }
 
+body[data-theme="cherryblossom"] {
+  background: linear-gradient(to bottom, #c9d6e3, #dce4ef 50%, #f0e6ef);
+  --bar-bg: rgba(255, 255, 255, 0.15);
+  --bar-border: rgba(255, 255, 255, 0.25);
+  --bar-hover: #e8a0b0;
+  --bar-hover-border: rgba(232, 160, 176, 0.4);
+}
+
+body[data-theme="cherryblossom"] #theme-nav button {
+  color: rgba(42, 42, 42, 0.6);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(42, 42, 42, 0.1);
+}
+
+body[data-theme="cherryblossom"] #theme-nav button:hover {
+  color: rgba(42, 42, 42, 0.9);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+body[data-theme="cherryblossom"] #theme-nav button[aria-pressed="true"] {
+  color: #2a2a2a;
+  border-color: rgba(42, 42, 42, 0.3);
+}
+
+body[data-theme="cherryblossom"] #project-bar a {
+  color: rgba(42, 42, 42, 0.7);
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+body[data-theme="cherryblossom"] #project-bar a:hover {
+  color: #e8a0b0;
+  border-color: rgba(232, 160, 176, 0.4);
+}
+
+body[data-theme="greenlight"] {
+  --bar-bg: rgba(0, 0, 0, 0.3);
+  --bar-border: rgba(255, 255, 255, 0.08);
+  --bar-hover: rgba(57, 255, 133, 0.8);
+  --bar-hover-border: rgba(57, 255, 133, 0.3);
+}
+
+body[data-theme="greenlight"] #project-bar a:hover {
+  color: rgba(57, 255, 133, 0.8);
+  border-color: rgba(57, 255, 133, 0.3);
+}
+
+body[data-theme="greenlight"] #theme-nav button:hover {
+  color: rgba(57, 255, 133, 0.7);
+}
+
+body[data-theme="greenlight"] #theme-nav button[aria-pressed="true"] {
+  color: rgba(57, 255, 133, 0.9);
+  border-color: rgba(57, 255, 133, 0.3);
+}
+
