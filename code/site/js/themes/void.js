@@ -197,8 +197,9 @@ export default {
 
   _estimateLength() {
     if (!this._ensoPath) return 1000;
-    // Rough estimate: ~94% of circumference
-    return 2 * Math.PI * this._ensoPath.r * 0.94;
+    // Must be >= actual path length to prevent dash pattern repetition.
+    // Path is ~98% of circumference; use full circumference as safe upper bound.
+    return 2 * Math.PI * this._ensoPath.r;
   },
 
   _drawEnso(progress) {

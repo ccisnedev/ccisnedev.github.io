@@ -99,6 +99,15 @@ describe('void theme', () => {
     expect(dashPattern[0]).toBe(dashPattern[1]);
   });
 
+  it('estimated length >= actual path arc to prevent dash repetition ghost', () => {
+    voidTheme.init(canvas, ctx);
+    const r = voidTheme._ensoPath.r;
+    // The path draws ~98% of a circle (3.92 quarter-arcs).
+    // totalLength must be >= actual path to avoid the dash pattern repeating.
+    const actualArc = 2 * Math.PI * r * 0.98;
+    expect(voidTheme._ensoLength).toBeGreaterThanOrEqual(actualArc);
+  });
+
   it('destroy does not throw', () => {
     voidTheme.init(canvas, ctx);
     expect(() => voidTheme.destroy()).not.toThrow();
