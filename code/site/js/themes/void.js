@@ -149,19 +149,23 @@ export default {
       });
     }
 
+    // Apply jitter to anchors (once, so cp1 of each segment matches its start)
+    for (let i = 0; i < anchors.length; i++) {
+      anchors[i].x += jitter();
+      anchors[i].y += jitter();
+    }
+
     // Build cubic Bézier segments between consecutive anchors
     const segments = [];
     for (let i = 0; i < 4; i++) {
       const a0 = anchors[i];
-      const a1 = anchors[i + 1];
       const angle0 = startAngle + i * segmentAngle;
       const angle1 = startAngle + (i + 1) * segmentAngle;
 
       // Tangent direction at each point (perpendicular to radius)
       const tan0 = angle0 + (Math.PI / 2) * dir;
-      const tan1 = angle1 + (Math.PI / 2) * dir;
 
-      // End point: last segment stops at ~90% of arc (small gap)
+      // End point: last segment stops at ~92% of arc (small gap)
       let endAngle, endX, endY;
       if (i === 3) {
         endAngle = angle0 + segmentAngle * 0.92;
@@ -169,15 +173,15 @@ export default {
         endY = cy + Math.sin(endAngle) * r + jitter();
       } else {
         endAngle = angle1;
-        endX = a1.x + jitter();
-        endY = a1.y + jitter();
+        endX = anchors[i + 1].x;
+        endY = anchors[i + 1].y;
       }
 
-      // Control points: keep full curvature even on last segment
+      // Control points: cp1 relative to the actual start of this segment
       const cp1x = a0.x + Math.cos(tan0) * k + jitter();
       const cp1y = a0.y + Math.sin(tan0) * k + jitter();
 
-      // For last segment, target the actual endpoint's tangent
+      // cp2 relative to the actual end point
       const tanEnd = (i === 3 ? endAngle : angle1) + (Math.PI / 2) * dir;
       const cp2x = endX - Math.cos(tanEnd) * k * (i === 3 ? 0.85 : 1) + jitter();
       const cp2y = endY - Math.sin(tanEnd) * k * (i === 3 ? 0.85 : 1) + jitter();
@@ -185,11 +189,8 @@ export default {
       segments.push({ cp1x, cp1y, cp2x, cp2y, x: endX, y: endY });
     }
 
-    // Start point at the start angle
-    const start = {
-      x: cx + Math.cos(startAngle) * r + jitter(),
-      y: cy + Math.sin(startAngle) * r + jitter(),
-    };
+    // Start point IS anchors[0] (same point — no mismatch)
+    const start = anchors[0];
 
     return { start, curves: segments, cx, cy, r, clockwise };
   },
