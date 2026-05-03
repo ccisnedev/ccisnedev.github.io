@@ -1,0 +1,115 @@
+/* === Reset === */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* === Canvas === */
+#scene {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+/* === Theme nav === */
+#theme-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+#theme-nav button {
+  font: 300 0.8rem/1 system-ui, sans-serif;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 0.35rem 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+#theme-nav button:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+#theme-nav button[aria-pressed="true"] {
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+#theme-nav button:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+/* === Project bar === */
+#project-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: var(--bar-bg, rgba(0, 0, 0, 0.3));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--bar-border, rgba(255, 255, 255, 0.08));
+}
+
+#project-bar a {
+  font: 300 0.85rem/1 system-ui, sans-serif;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 0.4rem 1.2rem;
+  transition: all 0.3s ease;
+}
+
+#project-bar a:hover {
+  color: var(--bar-hover, rgba(255, 255, 255, 0.9));
+  border-color: var(--bar-hover-border, rgba(255, 255, 255, 0.3));
+  background: rgba(255, 255, 255, 0.1);
+}
+
+#project-bar a:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+/* === Theme overrides via CSS custom properties === */
+body[data-theme="void"] {
+  --bar-bg: rgba(0, 0, 0, 0.4);
+  --bar-border: rgba(255, 255, 255, 0.06);
+  --bar-hover: rgba(255, 255, 255, 0.9);
+  --bar-hover-border: rgba(255, 255, 255, 0.3);
+}
+
