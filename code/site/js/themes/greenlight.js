@@ -31,10 +31,10 @@ export default {
     this._startTime = null;
     this._audio = null;
 
-    // Play ambient melody on theme entry
+    // Play ambient melody once on theme entry
     try {
       this._audio = new Audio('audio/melody.mp3');
-      this._audio.loop = true;
+      this._audio.loop = false;
       this._audio.volume = 0.3;
       this._audio.play().catch(() => {/* autoplay blocked — silent fallback */});
     } catch (_) {/* no audio support */}
