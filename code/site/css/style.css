@@ -113,37 +113,37 @@ body[data-theme="void"] {
   --bar-hover-border: rgba(255, 255, 255, 0.3);
 }
 
-body[data-theme="cherryblossom"] {
-  background: linear-gradient(to bottom, #c9d6e3, #dce4ef 50%, #f0e6ef);
+body[data-theme="sakura"] {
+  background: linear-gradient(to bottom, #e8dde4, #f0e6ef 40%, #f5eff2);
   --bar-bg: rgba(255, 255, 255, 0.15);
   --bar-border: rgba(255, 255, 255, 0.25);
   --bar-hover: #e8a0b0;
   --bar-hover-border: rgba(232, 160, 176, 0.4);
 }
 
-body[data-theme="cherryblossom"] #theme-nav button {
+body[data-theme="sakura"] #theme-nav button {
   color: rgba(42, 42, 42, 0.6);
   background: rgba(255, 255, 255, 0.2);
   border-color: rgba(42, 42, 42, 0.1);
 }
 
-body[data-theme="cherryblossom"] #theme-nav button:hover {
+body[data-theme="sakura"] #theme-nav button:hover {
   color: rgba(42, 42, 42, 0.9);
   background: rgba(255, 255, 255, 0.4);
 }
 
-body[data-theme="cherryblossom"] #theme-nav button[aria-pressed="true"] {
+body[data-theme="sakura"] #theme-nav button[aria-pressed="true"] {
   color: #2a2a2a;
   border-color: rgba(42, 42, 42, 0.3);
 }
 
-body[data-theme="cherryblossom"] #project-bar a {
+body[data-theme="sakura"] #project-bar a {
   color: rgba(42, 42, 42, 0.7);
   background: rgba(255, 255, 255, 0.25);
   border-color: rgba(255, 255, 255, 0.3);
 }
 
-body[data-theme="cherryblossom"] #project-bar a:hover {
+body[data-theme="sakura"] #project-bar a:hover {
   color: #e8a0b0;
   border-color: rgba(232, 160, 176, 0.4);
 }
