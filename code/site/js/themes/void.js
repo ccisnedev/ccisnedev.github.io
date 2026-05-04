@@ -1,3 +1,8 @@
+import { generateEnso, estimateLength } from './void/enso-path.js';
+import { samplePath } from './void/path-sampling.js';
+import { createParticleCloud } from './void/particle-cloud.js';
+import { renderParticles, renderStrokeIncrement } from './void/particle-renderer.js';
+
 /** @type {import('../main.js').Theme} */
 export default {
   id: 'void',
@@ -14,8 +19,14 @@ export default {
     this._noiseTimer = 0;
 
     // Generate ensō path (unique per init — each visit is a new breath)
-    this._ensoPath = this._generateEnso();
-    this._ensoLength = this._estimateLength();
+    this._ensoPath = generateEnso(this._w, this._h);
+    this._ensoLength = estimateLength(this._ensoPath);
+    this._ensoSeed = Math.floor(Math.random() * 100000);
+    this._brushTip = null;
+
+    // Offscreen buffer for accumulative ink
+    this._createBuffer();
+    this._lastStrokeProgress = 0;
 
     this._fill();
   },
@@ -24,10 +35,17 @@ export default {
     this._w = width;
     this._h = height;
     // Regenerate for new dimensions
-    this._ensoPath = this._generateEnso();
-    this._ensoLength = this._estimateLength();
+    this._ensoPath = generateEnso(this._w, this._h);
+    this._ensoLength = estimateLength(this._ensoPath);
     this._drawn = false;
     this._startTime = null;
+    this._cachedFrame = null;
+    this._brushTip = null;
+    this._pathSamples = null;
+    this._paperTexture = null;
+    this._lastStrokeProgress = 0;
+    this._cloud = null;
+    this._createBuffer();
   },
 
   frame(timestamp) {
@@ -37,26 +55,54 @@ export default {
     const elapsed = (timestamp - this._startTime) / 1000; // seconds
 
     // Phase 1: pure black (0 - 0.5s)
-    // Phase 2: noise awakens (0.5s+)
-    // Phase 3: ensō draws (1.0s - 3.0s)
-    // Phase 4: static forever
+    // Phase 2: noise awakens (0.5 - 1.0s)
+    // Phase 3: drop forms (1.0 - 1.5s) — particles grow in place
+    // Phase 4: stroke traces (1.5 - 4.0s) — particles trace ensō, dying off
+    // Phase 5: static forever
+
+    const dropStart = 1.0;
+    const dropDuration = 0.5;
+    const strokeStart = 1.5;
+    const strokeDuration = 2.5;
 
     // Background: living black
-    if (elapsed > 0.5) {
+    if (elapsed > 0.5 && !this._drawn) {
       this._drawNoise(timestamp);
-    } else {
+    } else if (!this._drawn) {
       this._fill();
     }
 
-    // Ensō stroke animation
-    if (elapsed >= 1.0) {
-      const drawDuration = 2.0; // seconds
-      const drawElapsed = elapsed - 1.0;
-      const progress = this._drawn ? 1 : Math.min(drawElapsed / drawDuration, 1);
+    // Once fully drawn, stop re-rendering
+    if (this._drawn && this._cachedFrame) {
+      return true;
+    }
 
-      if (progress >= 1) this._drawn = true;
+    // Particle stroke animation
+    if (elapsed >= dropStart) {
+      // Drop formation progress (0-1)
+      const dropProgress = Math.min((elapsed - dropStart) / dropDuration, 1);
 
-      this._drawEnso(this._easeInOut(progress));
+      // Stroke progress (0-1), starts after drop is formed
+      let strokeProgress = 0;
+      if (elapsed >= strokeStart) {
+        const strokeElapsed = elapsed - strokeStart;
+        strokeProgress = Math.min(strokeElapsed / strokeDuration, 1);
+      }
+
+      if (strokeProgress >= 1 && !this._drawn) {
+        this._drawn = true;
+      }
+
+      // Render onto offscreen buffer (accumulative)
+      this._renderToBuffer(dropProgress, strokeProgress);
+
+      // Composite: background + buffer
+      this._fill();
+      if (this._bufferCanvas && this._bufferCtx) {
+        this._ctx.drawImage(this._bufferCanvas, 0, 0);
+      }
+
+      if (this._drawn) this._cachedFrame = true;
     }
 
     return true;
@@ -68,12 +114,26 @@ export default {
     this._ensoPath = null;
     this._startTime = null;
     this._drawn = false;
+    this._cachedFrame = null;
+    this._brushTip = null;
+    this._bufferCanvas = null;
+    this._bufferCtx = null;
+    this._cloud = null;
   },
 
   reducedMotion() {
     if (!this._ctx) return;
     this._fill();
-    this._drawEnso(1); // fully drawn, no animation
+    // Simulate progressive rendering to accumulate ink in buffer
+    const steps = 20;
+    for (let i = 0; i <= steps; i++) {
+      const strokeProgress = i / steps;
+      const dropProgress = Math.min(1, strokeProgress * 3); // drop finishes quickly
+      this._renderToBuffer(dropProgress, strokeProgress);
+    }
+    if (this._bufferCanvas && this._bufferCtx) {
+      this._ctx.drawImage(this._bufferCanvas, 0, 0);
+    }
   },
 
   // --- Private ---
@@ -112,137 +172,80 @@ export default {
     }
   },
 
-  _generateEnso() {
-    // Center of canvas, slightly above geometric center (ma)
-    const cx = this._w / 2;
-    const cy = this._h * 0.46;
-    const r = Math.min(this._w, this._h) * 0.18;
-
-    // Small jitter for imperfection (hand-drawn feel)
-    const jitter = () => (Math.random() - 0.5) * r * 0.06;
-
-    // Direction: 90% clockwise, 10% counter-clockwise
-    const clockwise = Math.random() < 0.9;
-
-    // Start at ~9 o'clock (π radians) with slight angular variation (±15°)
-    const angleVariation = (Math.random() - 0.5) * (Math.PI / 6); // ±15°
-    const startAngle = Math.PI + angleVariation; // ~9 o'clock
-
-    // Standard 4-segment Bézier circle approximation
-    // Magic number: (4/3)*tan(π/8) ≈ 0.5522847498
-    const k = 0.5522847498 * r;
-
-    // Direction multiplier: +1 for CW, -1 for CCW
-    const dir = clockwise ? 1 : -1;
-
-    // Generate 4 points around the circle from the start angle
-    // Each segment covers ~90°. We draw ~93% (gap near the end).
-    const segmentAngle = (Math.PI / 2) * dir;
-
-    // The 5 anchor points on the circle (start + 4 segment endpoints)
-    const anchors = [];
-    for (let i = 0; i <= 4; i++) {
-      const angle = startAngle + i * segmentAngle;
-      anchors.push({
-        x: cx + Math.cos(angle) * r,
-        y: cy + Math.sin(angle) * r,
-      });
-    }
-
-    // Apply jitter to anchors (once, so cp1 of each segment matches its start)
-    for (let i = 0; i < anchors.length; i++) {
-      anchors[i].x += jitter();
-      anchors[i].y += jitter();
-    }
-
-    // Build cubic Bézier segments between consecutive anchors
-    const segments = [];
-    for (let i = 0; i < 4; i++) {
-      const a0 = anchors[i];
-      const angle0 = startAngle + i * segmentAngle;
-      const angle1 = startAngle + (i + 1) * segmentAngle;
-
-      // Tangent direction at each point (perpendicular to radius)
-      const tan0 = angle0 + (Math.PI / 2) * dir;
-
-      // End point: last segment stops at ~92% of arc (small gap)
-      let endAngle, endX, endY;
-      if (i === 3) {
-        endAngle = angle0 + segmentAngle * 0.92;
-        endX = cx + Math.cos(endAngle) * r + jitter();
-        endY = cy + Math.sin(endAngle) * r + jitter();
+  _createBuffer() {
+    try {
+      if (typeof OffscreenCanvas !== 'undefined') {
+        this._bufferCanvas = new OffscreenCanvas(this._w, this._h);
       } else {
-        endAngle = angle1;
-        endX = anchors[i + 1].x;
-        endY = anchors[i + 1].y;
+        this._bufferCanvas = document.createElement('canvas');
+        this._bufferCanvas.width = this._w;
+        this._bufferCanvas.height = this._h;
       }
-
-      // Control points: cp1 relative to the actual start of this segment
-      const cp1x = a0.x + Math.cos(tan0) * k + jitter();
-      const cp1y = a0.y + Math.sin(tan0) * k + jitter();
-
-      // cp2 relative to the actual end point
-      const tanEnd = (i === 3 ? endAngle : angle1) + (Math.PI / 2) * dir;
-      const cp2x = endX - Math.cos(tanEnd) * k * (i === 3 ? 0.85 : 1) + jitter();
-      const cp2y = endY - Math.sin(tanEnd) * k * (i === 3 ? 0.85 : 1) + jitter();
-
-      segments.push({ cp1x, cp1y, cp2x, cp2y, x: endX, y: endY });
-    }
-
-    // Start point IS anchors[0] (same point — no mismatch)
-    const start = anchors[0];
-
-    return { start, curves: segments, cx, cy, r, clockwise };
-  },
-
-  _estimateLength() {
-    if (!this._ensoPath) return 1000;
-    // Must be >= actual path length to prevent dash pattern repetition.
-    // Path is ~98% of circumference; use full circumference as safe upper bound.
-    return 2 * Math.PI * this._ensoPath.r;
-  },
-
-  _drawEnso(progress) {
-    if (!this._ctx || !this._ensoPath) return;
-    const ctx = this._ctx;
-    const { start, curves } = this._ensoPath;
-
-    const totalLength = this._ensoLength;
-    const visibleLength = totalLength * progress;
-    const dashOffset = totalLength - visibleLength;
-
-    // Draw 3 layers for variable thickness (brush pressure simulation)
-    const layers = [
-      { width: 6, opacity: 0.25 },  // halo
-      { width: 4, opacity: 0.5 },   // body
-      { width: 2.5, opacity: 0.85 }, // center
-    ];
-
-    // Scale stroke to viewport
-    const scale = Math.min(this._w, this._h) / 600;
-
-    for (const layer of layers) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      for (const c of curves) {
-        ctx.bezierCurveTo(c.cp1x, c.cp1y, c.cp2x, c.cp2y, c.x, c.y);
-      }
-      ctx.strokeStyle = `rgba(240, 240, 240, ${layer.opacity})`;
-      ctx.lineWidth = layer.width * scale;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.setLineDash([totalLength, totalLength]);
-      ctx.lineDashOffset = dashOffset;
-      ctx.stroke();
-      ctx.restore();
+      this._bufferCtx = this._bufferCanvas.getContext('2d');
+    } catch (e) {
+      this._bufferCanvas = null;
+      this._bufferCtx = null;
     }
   },
 
-  _easeInOut(t) {
-    // Cubic ease-in-out: slow start (brush touches), fast middle, slow end (brush lifts)
-    return t < 0.5
-      ? 4 * t * t * t
-      : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  _getCloud() {
+    if (!this._cloud) {
+      if (!this._pathSamples) {
+        this._pathSamples = samplePath(this._ensoPath, 200);
+      }
+      const brushRadius = Math.min(this._w, this._h) * 0.025;
+      this._cloud = createParticleCloud(150, brushRadius, this._ensoSeed || 0);
+    }
+    return this._cloud;
+  },
+
+  _renderToBuffer(dropProgress, strokeProgress) {
+    // Use buffer ctx if available, fallback to main ctx (test environments)
+    const ctx = this._bufferCtx || this._ctx;
+    if (!ctx || !this._ensoPath) return;
+
+    if (!this._pathSamples) {
+      this._pathSamples = samplePath(this._ensoPath, 200);
+    }
+
+    const brushRadius = Math.min(this._w, this._h) * 0.025;
+    const cloud = this._getCloud();
+    const color = 'rgba(240, 240, 240, 1)';
+    const seed = this._ensoSeed || 0;
+
+    if (strokeProgress <= 0) {
+      // Drop phase: clear buffer and redraw full drop (animated growing)
+      ctx.clearRect(0, 0, this._w, this._h);
+      renderParticles(ctx, cloud, this._pathSamples, {
+        progress: 0,
+        dropProgress,
+        brushRadius,
+        color,
+        seed,
+      });
+    } else {
+      // Stroke phase: draw only the NEW segment incrementally
+      if (this._lastStrokeProgress <= 0) {
+        // First stroke frame: redraw drop at full, then start incremental
+        ctx.clearRect(0, 0, this._w, this._h);
+        renderParticles(ctx, cloud, this._pathSamples, {
+          progress: 0,
+          dropProgress: 1,
+          brushRadius,
+          color,
+          seed,
+        });
+      }
+
+      renderStrokeIncrement(ctx, cloud, this._pathSamples, {
+        fromProgress: this._lastStrokeProgress,
+        toProgress: strokeProgress,
+        brushRadius,
+        color,
+        seed,
+      });
+
+      this._lastStrokeProgress = strokeProgress;
+    }
   },
 };

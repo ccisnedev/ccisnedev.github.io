@@ -10,7 +10,7 @@ describe('ThemeEngine', () => {
       <canvas id="scene" width="800" height="600"></canvas>
       <nav id="theme-nav">
         <button data-theme="void">void</button>
-        <button data-theme="cherryblossom">cherryblossom</button>
+        <button data-theme="sakura">sakura</button>
         <button data-theme="greenlight">greenlight</button>
       </nav>
       <footer id="project-bar">
@@ -65,8 +65,8 @@ describe('ThemeEngine', () => {
     it('switches to a registered theme', () => {
       engine = new ThemeEngine(canvas);
       engine.start();
-      engine.switchTo('cherryblossom');
-      expect(engine.currentTheme).toBe('cherryblossom');
+      engine.switchTo('sakura');
+      expect(engine.currentTheme).toBe('sakura');
     });
 
     it('persists selection to localStorage', () => {
@@ -95,16 +95,16 @@ describe('ThemeEngine', () => {
       engine.start();
       const voidTheme = engine.registry.get('void');
       const destroySpy = vi.spyOn(voidTheme, 'destroy');
-      engine.switchTo('cherryblossom');
+      engine.switchTo('sakura');
       expect(destroySpy).toHaveBeenCalled();
     });
 
     it('calls init on new theme after switching', () => {
       engine = new ThemeEngine(canvas);
       engine.start();
-      const cbTheme = engine.registry.get('cherryblossom');
+      const cbTheme = engine.registry.get('sakura');
       const initSpy = vi.spyOn(cbTheme, 'init');
-      engine.switchTo('cherryblossom');
+      engine.switchTo('sakura');
       expect(initSpy).toHaveBeenCalledWith(canvas, engine.ctx);
     });
   });
@@ -115,9 +115,9 @@ describe('ThemeEngine', () => {
       expect(engine.registry.has('void')).toBe(true);
     });
 
-    it('has cherryblossom theme registered', () => {
+    it('has sakura theme registered', () => {
       engine = new ThemeEngine(canvas);
-      expect(engine.registry.has('cherryblossom')).toBe(true);
+      expect(engine.registry.has('sakura')).toBe(true);
     });
 
     it('has greenlight theme registered', () => {

@@ -16,15 +16,27 @@ describe('void theme', () => {
       lineWidth: 0,
       lineCap: '',
       lineJoin: '',
+      globalAlpha: 1,
+      globalCompositeOperation: '',
       fillRect: () => {},
+      clearRect: () => {},
+      drawImage: () => {},
       beginPath: () => {},
       moveTo: () => {},
+      lineTo: () => {},
+      closePath: () => {},
       bezierCurveTo: () => {},
+      quadraticCurveTo: () => {},
       stroke: () => {},
+      fill: () => {},
       save: () => {},
       restore: () => {},
       setLineDash: () => {},
       lineDashOffset: 0,
+      arc: () => {},
+      ellipse: () => {},
+      translate: () => {},
+      rotate: () => {},
     };
   });
 
@@ -64,14 +76,14 @@ describe('void theme', () => {
 
   it('frame draws ensō after 1 second elapsed', () => {
     voidTheme.init(canvas, ctx);
-    let stroked = false;
-    ctx.stroke = () => { stroked = true; };
+    let filled = false;
+    ctx.fill = () => { filled = true; };
     // First frame at t=0
     voidTheme.frame(0);
-    expect(stroked).toBe(false);
-    // Frame at t=1500ms (ensō should be drawing)
+    expect(filled).toBe(false);
+    // Frame at t=1500ms (ensō should be drawing — drop phase uses filled circles)
     voidTheme.frame(1500);
-    expect(stroked).toBe(true);
+    expect(filled).toBe(true);
   });
 
   it('resize regenerates ensō path', () => {
@@ -86,17 +98,18 @@ describe('void theme', () => {
     expect(() => voidTheme.resize(1024, 768)).not.toThrow();
   });
 
-  it('uses dash pattern [length, length] to prevent second stroke fragment', () => {
+  it('uses particle rendering (arcs for drop, strokes for tracing)', () => {
     voidTheme.init(canvas, ctx);
-    let dashPattern = null;
-    ctx.setLineDash = (pattern) => { dashPattern = pattern; };
-    // Trigger ensō draw at partial progress
+    let arcCount = 0;
+    let strokeCount = 0;
+    ctx.arc = () => { arcCount++; };
+    ctx.stroke = () => { strokeCount++; };
+    ctx.fill = () => {};
+    // Trigger ensō draw at partial progress (2s = stroke is tracing)
     voidTheme.frame(0);     // start time
-    voidTheme.frame(2000);  // 2s in = ensō is drawing
-    // Dash pattern must have TWO values (dash + gap both equal totalLength)
-    expect(dashPattern).not.toBeNull();
-    expect(dashPattern.length).toBe(2);
-    expect(dashPattern[0]).toBe(dashPattern[1]);
+    voidTheme.frame(2000);  // 2s in = particles are tracing
+    // Particle system uses stroke() for polylines
+    expect(strokeCount).toBeGreaterThan(1);
   });
 
   it('estimated length >= actual path arc to prevent dash repetition ghost', () => {
@@ -117,6 +130,7 @@ describe('void theme', () => {
     voidTheme.init(canvas, ctx);
     let stroked = false;
     ctx.stroke = () => { stroked = true; };
+    ctx.fill = () => {};
     voidTheme.reducedMotion();
     expect(stroked).toBe(true);
   });

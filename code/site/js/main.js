@@ -1,5 +1,5 @@
 import voidTheme from './themes/void.js';
-import cherryblossomTheme from './themes/cherryblossom.js';
+import sakuraTheme from './themes/sakura.js';
 import greenlightTheme from './themes/greenlight.js';
 
 /**
@@ -26,7 +26,7 @@ export class ThemeEngine {
     /** @type {Map<string, Theme>} */
     this.registry = new Map();
     this.registry.set(voidTheme.id, voidTheme);
-    this.registry.set(cherryblossomTheme.id, cherryblossomTheme);
+    this.registry.set(sakuraTheme.id, sakuraTheme);
     this.registry.set(greenlightTheme.id, greenlightTheme);
   }
 
