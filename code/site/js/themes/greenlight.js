@@ -29,7 +29,15 @@ export default {
     this._w = canvas.width;
     this._h = canvas.height;
     this._startTime = null;
-    this._audioPlayed = false;
+    this._audio = null;
+
+    // Play ambient melody on theme entry
+    try {
+      this._audio = new Audio('audio/melody.mp3');
+      this._audio.loop = true;
+      this._audio.volume = 0.3;
+      this._audio.play().catch(() => {/* autoplay blocked — silent fallback */});
+    } catch (_) {/* no audio support */}
   },
 
   resize(width, height) {
@@ -86,6 +94,12 @@ export default {
   },
 
   destroy() {
+    // Stop and release audio
+    if (this._audio) {
+      this._audio.pause();
+      this._audio.src = '';
+      this._audio = null;
+    }
     this._ctx = null;
     this._canvas = null;
   },
