@@ -30,19 +30,37 @@ export default {
     this._h = canvas.height;
     this._startTime = null;
     this._audio = null;
+    this._skyGrad = null;
+    this._onInteraction = this._onInteraction.bind(this);
 
-    // Play ambient melody once on theme entry
-    try {
-      this._audio = new Audio('audio/melody.mp3');
-      this._audio.loop = false;
-      this._audio.volume = 0.3;
-      this._audio.play().catch(() => {/* autoplay blocked — silent fallback */});
-    } catch (_) {/* no audio support */}
+    this._recalculateStatics();
+
+    document.addEventListener('click', this._onInteraction, { once: true });
   },
 
   resize(width, height) {
     this._w = width;
     this._h = height;
+    this._recalculateStatics();
+  },
+
+  _recalculateStatics() {
+    if (!this._ctx) return;
+    const horizonY = this._h * 0.30;
+    
+    // Sky
+    this._skyGrad = this._ctx.createLinearGradient(0, 0, 0, horizonY);
+    this._skyGrad.addColorStop(0, SKY_TOP);
+    this._skyGrad.addColorStop(1, SKY_HORIZON);
+  },
+
+  _onInteraction() {
+    try {
+      this._audio = new Audio('audio/melody.mp3');
+      this._audio.loop = false;
+      this._audio.volume = 0.3;
+      this._audio.play().catch(() => {/* fallback */});
+    } catch (_) {/* no audio support */}
   },
 
   frame(timestamp) {
@@ -58,10 +76,9 @@ export default {
     const shoreH = Math.max(6, h * 0.015);
 
     // --- Sky ---
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
-    skyGrad.addColorStop(0, SKY_TOP);
-    skyGrad.addColorStop(1, SKY_HORIZON);
-    ctx.fillStyle = skyGrad;
+    if (this._skyGrad) {
+      ctx.fillStyle = this._skyGrad;
+    }
     ctx.fillRect(0, 0, w, horizonY);
 
     // --- Shore ---
@@ -94,6 +111,7 @@ export default {
   },
 
   destroy() {
+    document.removeEventListener('click', this._onInteraction);
     // Stop and release audio
     if (this._audio) {
       this._audio.pause();
