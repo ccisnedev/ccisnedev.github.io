@@ -43,7 +43,9 @@ export function generateBlossoms(branches, seed) {
   const rng = mulberry32(seed);
   const blossoms = [];
 
-  for (const branch of branches) {
+  for (let bIdx = 0; bIdx < branches.length; bIdx++) {
+    const branch = branches[bIdx];
+    let intraBranchOrder = 0;
     // Determine spur node placement along each branch.
     // Botanical ref: Prunus serrulata flowers in clusters of 2-5 at nodes
     // on short spurs. Spurs arise at leaf axils at semi-regular intervals.
@@ -98,6 +100,8 @@ export function generateBlossoms(branches, seed) {
             color: BUD_COLOR,
             type: 'bud',
             scaleX: 1,
+            branchIndex: bIdx,
+            intraBranchOrder: intraBranchOrder++,
           });
         } else {
           // Size varies: closer to branch tip = slightly smaller (newer flowers)
@@ -112,6 +116,8 @@ export function generateBlossoms(branches, seed) {
             color: FLOWER_PALETTE[Math.floor(rng() * FLOWER_PALETTE.length)],
             type: 'flower',
             scaleX,
+            branchIndex: bIdx,
+            intraBranchOrder: intraBranchOrder++,
           });
         }
       }
@@ -125,21 +131,22 @@ export function generateBlossoms(branches, seed) {
  * Draw a single sakura blossom on a canvas context.
  * @param {CanvasRenderingContext2D} ctx
  * @param {Object} blossom
+ * @param {number} [fadeAlpha=1] — opacity multiplier for fade-in (0..1)
  */
-export function drawBlossom(ctx, blossom) {
+export function drawBlossom(ctx, blossom, fadeAlpha = 1) {
   if (blossom.type === 'bud') {
-    _drawBud(ctx, blossom);
+    _drawBud(ctx, blossom, fadeAlpha);
   } else {
-    _drawFlower(ctx, blossom);
+    _drawFlower(ctx, blossom, fadeAlpha);
   }
 }
 
-function _drawFlower(ctx, { x, y, size, rotation, petalCount, color, scaleX }) {
+function _drawFlower(ctx, { x, y, size, rotation, petalCount, color, scaleX }, fadeAlpha) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(rotation);
   ctx.scale(scaleX, 1);
-  ctx.globalAlpha = 0.88;
+  ctx.globalAlpha = 0.88 * fadeAlpha;
 
   const angleStep = (Math.PI * 2) / petalCount;
 
@@ -153,14 +160,14 @@ function _drawFlower(ctx, { x, y, size, rotation, petalCount, color, scaleX }) {
   }
 
   // Pink center wash
-  ctx.globalAlpha = 0.3;
+  ctx.globalAlpha = 0.3 * fadeAlpha;
   ctx.fillStyle = '#f48fb1';
   ctx.beginPath();
   ctx.arc(0, 0, size * 0.22, 0, Math.PI * 2);
   ctx.fill();
 
   // Stamens: 6-8 filaments with anther dots
-  ctx.globalAlpha = 0.9;
+  ctx.globalAlpha = 0.9 * fadeAlpha;
   ctx.strokeStyle = '#c9a050';
   ctx.fillStyle = '#8b6914';
   ctx.lineWidth = 0.7;
@@ -183,11 +190,11 @@ function _drawFlower(ctx, { x, y, size, rotation, petalCount, color, scaleX }) {
   ctx.restore();
 }
 
-function _drawBud(ctx, { x, y, size, rotation, color }) {
+function _drawBud(ctx, { x, y, size, rotation, color }, fadeAlpha) {
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(rotation);
-  ctx.globalAlpha = 0.9;
+  ctx.globalAlpha = 0.9 * fadeAlpha;
   ctx.fillStyle = color;
 
   // Elongated oval bud
