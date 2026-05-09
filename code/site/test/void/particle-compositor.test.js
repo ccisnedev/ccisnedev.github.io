@@ -9,6 +9,7 @@ function createMockCtx() {
     moveTo(x, y) { ops.push({ type: 'moveTo', x, y }); },
     lineTo(x, y) { ops.push({ type: 'lineTo', x, y }); },
     arc(x, y, r, a0, a1) { ops.push({ type: 'arc', x, y, r }); },
+    fillRect(x, y, w, h) { ops.push({ type: 'fillRect', x, y, w, h }); },
     fill() { ops.push({ type: 'fill' }); },
     stroke() { ops.push({ type: 'stroke' }); },
     closePath() { ops.push({ type: 'closePath' }); },
@@ -58,7 +59,7 @@ describe('compositeParticleStroke', () => {
     expect(ctx.ops.length).toBeGreaterThan(10);
   });
 
-  it('in drop phase only (progress=0), renders filled circle arcs', () => {
+  it('in drop phase only (progress=0), renders the ink pool as cells', () => {
     const samples = makeSamples(50);
     compositeParticleStroke(ctx, samples, {
       brushRadius: 15,
@@ -70,10 +71,9 @@ describe('compositeParticleStroke', () => {
     });
 
     const arcs = ctx.ops.filter(o => o.type === 'arc');
-    expect(arcs.length).toBeGreaterThan(0);
-    // Drop phase renders filled circles (arc + fill pairs)
-    const fills = ctx.ops.filter(o => o.type === 'fill');
-    expect(fills.length).toBe(arcs.length);
+    const cells = ctx.ops.filter(o => o.type === 'fillRect');
+    expect(arcs.length).toBe(0);
+    expect(cells.length).toBeGreaterThan(20);
     // No lineTo ops (that's stroke phase polylines)
     const lineTos = ctx.ops.filter(o => o.type === 'lineTo');
     expect(lineTos.length).toBe(0);

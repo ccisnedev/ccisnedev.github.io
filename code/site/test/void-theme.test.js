@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import voidTheme from '../js/themes/void.js';
+import voidTheme, { strokeTiming } from '../js/themes/void.js';
 
 describe('void theme', () => {
   let canvas;
@@ -74,16 +74,18 @@ describe('void theme', () => {
     expect(voidTheme.frame(0)).toBe(true);
   });
 
-  it('frame draws ensō after 1 second elapsed', () => {
+  it('does not run a separate ink-pool animation at stroke start', () => {
     voidTheme.init(canvas, ctx);
-    let filled = false;
-    ctx.fill = () => { filled = true; };
+    let clearCount = 0;
+    let strokeCount = 0;
+    ctx.clearRect = () => { clearCount++; };
+    ctx.stroke = () => { strokeCount++; };
     // First frame at t=0
     voidTheme.frame(0);
-    expect(filled).toBe(false);
-    // Frame at t=1500ms (ensō should be drawing — drop phase uses filled circles)
-    voidTheme.frame(1500);
-    expect(filled).toBe(true);
+    // At exactly 1s the stroke has not advanced, so no standalone pool is drawn.
+    voidTheme.frame(1000);
+    expect(clearCount).toBe(0);
+    expect(strokeCount).toBe(0);
   });
 
   it('resize regenerates ensō path', () => {
@@ -98,18 +100,32 @@ describe('void theme', () => {
     expect(() => voidTheme.resize(1024, 768)).not.toThrow();
   });
 
-  it('uses particle rendering (arcs for drop, strokes for tracing)', () => {
+  it('draws the initial contact together with the first bristle strokes', () => {
     voidTheme.init(canvas, ctx);
-    let arcCount = 0;
+    let rectCount = 0;
     let strokeCount = 0;
-    ctx.arc = () => { arcCount++; };
+    ctx.fillRect = () => { rectCount++; };
     ctx.stroke = () => { strokeCount++; };
     ctx.fill = () => {};
-    // Trigger ensō draw at partial progress (2s = stroke is tracing)
+    // Trigger ensō draw just after contact; ink pool and bristles appear together.
     voidTheme.frame(0);     // start time
-    voidTheme.frame(2000);  // 2s in = particles are tracing
-    // Particle system uses stroke() for polylines
+    voidTheme.frame(1500);
+    expect(rectCount).toBeGreaterThan(10);
     expect(strokeCount).toBeGreaterThan(1);
+  });
+
+  it('stroke timing starts very slowly, accelerates, then eases out', () => {
+    expect(strokeTiming(0)).toBe(0);
+    expect(strokeTiming(0.12)).toBeCloseTo(0.02, 3);
+    expect(strokeTiming(0.38)).toBeCloseTo(0.4, 3);
+    expect(strokeTiming(1)).toBe(1);
+
+    const earlyDelta = strokeTiming(0.12) - strokeTiming(0.06);
+    const accelerationDelta = strokeTiming(0.38) - strokeTiming(0.28);
+    const finishDelta = strokeTiming(1) - strokeTiming(0.9);
+
+    expect(accelerationDelta).toBeGreaterThan(earlyDelta * 5);
+    expect(accelerationDelta).toBeGreaterThan(finishDelta);
   });
 
   it('estimated length >= actual path arc to prevent dash repetition ghost', () => {

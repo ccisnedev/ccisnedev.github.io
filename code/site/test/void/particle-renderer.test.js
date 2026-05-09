@@ -10,6 +10,7 @@ function createMockCtx() {
     moveTo(x, y) { ops.push({ type: 'moveTo', x, y }); },
     lineTo(x, y) { ops.push({ type: 'lineTo', x, y }); },
     arc(x, y, r, a0, a1) { ops.push({ type: 'arc', x, y, r }); },
+    fillRect(x, y, w, h) { ops.push({ type: 'fillRect', x, y, w, h }); },
     fill() { ops.push({ type: 'fill' }); },
     stroke() { ops.push({ type: 'stroke' }); },
     closePath() { ops.push({ type: 'closePath' }); },
@@ -44,7 +45,7 @@ describe('renderParticles', () => {
   let ctx;
   beforeEach(() => { ctx = createMockCtx(); });
 
-  it('renders filled circles in phase 1 (drop forming)', () => {
+  it('renders an ink pool in phase 1 instead of per-bristle circles', () => {
     const cloud = createParticleCloud(20, 10, 42);
     const samples = makeSamples(50);
 
@@ -56,33 +57,31 @@ describe('renderParticles', () => {
       seed: 42,
     });
 
+    const cells = ctx.ops.filter(o => o.type === 'fillRect');
     const arcs = ctx.ops.filter(o => o.type === 'arc');
-    const fills = ctx.ops.filter(o => o.type === 'fill');
-    expect(arcs.length).toBe(20); // all particles render
-    expect(fills.length).toBe(20); // as filled circles
+    expect(cells.length).toBeGreaterThan(20);
+    expect(arcs.length).toBe(0);
   });
 
-  it('ring radius grows with dropProgress', () => {
+  it('ink pool footprint grows with dropProgress', () => {
     const cloud = createParticleCloud(5, 10, 42);
     const samples = makeSamples(50);
 
-    // Small rings at low dropProgress
+    // Smaller footprint at low dropProgress
     renderParticles(ctx, cloud, samples, {
       progress: 0, dropProgress: 0.1, brushRadius: 10, color: 'white', seed: 42,
     });
-    const smallArcs = ctx.ops.filter(o => o.type === 'arc');
-    const smallR = smallArcs[0]?.r || 0;
+    const smallCells = ctx.ops.filter(o => o.type === 'fillRect').length;
 
     ctx.ops.length = 0;
 
-    // Bigger rings at high dropProgress
+    // Larger footprint at high dropProgress
     renderParticles(ctx, cloud, samples, {
       progress: 0, dropProgress: 0.9, brushRadius: 10, color: 'white', seed: 42,
     });
-    const bigArcs = ctx.ops.filter(o => o.type === 'arc');
-    const bigR = bigArcs[0]?.r || 0;
+    const bigCells = ctx.ops.filter(o => o.type === 'fillRect').length;
 
-    expect(bigR).toBeGreaterThan(smallR);
+    expect(bigCells).toBeGreaterThan(smallCells);
   });
 
   it('renders strokes in phase 2 (tracing)', () => {
@@ -103,9 +102,12 @@ describe('renderParticles', () => {
   });
 
   it('dead particles are not rendered in stroke phase', () => {
-    // With tiny radius, most particles die (normDist >> 1 = high depletion)
-    // but strong particles survive. Verify fewer strokes than total particles.
-    const cloud = createParticleCloud(20, 10, 42);
+    const cloud = createParticleCloud(20, 10, 42).map(p => ({
+      ...p,
+      inkReserve: 0,
+      strong: false,
+      relightAt: 0,
+    }));
     const samples = makeSamples(50);
 
     renderParticles(ctx, cloud, samples, {
@@ -117,29 +119,26 @@ describe('renderParticles', () => {
     });
 
     const strokes = ctx.ops.filter(o => o.type === 'stroke');
-    // Most should be dead — fewer strokes than total particle count
-    expect(strokes.length).toBeLessThan(cloud.length);
+    expect(strokes.length).toBe(0);
   });
 
-  it('more particles render at low progress than high progress', () => {
+  it('stroke opacity drops as ink depletes late in the stroke', () => {
     const cloud = createParticleCloud(50, 10, 42);
     const samples = makeSamples(100);
 
-    // At progress 0.3 (early)
     renderParticles(ctx, cloud, samples, {
-      progress: 0.3, dropProgress: 1, brushRadius: 10, color: 'white', seed: 42,
+      progress: 0.35, dropProgress: 1, brushRadius: 10, color: 'white', seed: 42,
     });
-    const earlyStrokes = ctx.ops.filter(o => o.type === 'stroke').length;
+    const earlyAlpha = Math.max(...ctx.ops.filter(o => o.type === 'globalAlpha').map(o => o.value));
 
     ctx.ops.length = 0;
 
-    // At progress 0.9 (late)
     renderParticles(ctx, cloud, samples, {
-      progress: 0.9, dropProgress: 1, brushRadius: 10, color: 'white', seed: 42,
+      progress: 0.95, dropProgress: 1, brushRadius: 10, color: 'white', seed: 42,
     });
-    const lateStrokes = ctx.ops.filter(o => o.type === 'stroke').length;
+    const lateAlpha = Math.max(...ctx.ops.filter(o => o.type === 'globalAlpha').map(o => o.value));
 
-    expect(earlyStrokes).toBeGreaterThan(lateStrokes);
+    expect(earlyAlpha).toBeGreaterThan(lateAlpha);
   });
 
   it('uses save/restore for state isolation', () => {
@@ -205,21 +204,24 @@ describe('renderStrokeIncrement', () => {
   });
 
   it('skips dead particles', () => {
-    const cloud = createParticleCloud(30, 10, 42);
+    const cloud = createParticleCloud(30, 10, 42).map(p => ({
+      ...p,
+      inkReserve: 0,
+      strong: false,
+      relightAt: 0,
+    }));
     const samples = makeSamples(100);
 
-    // At high progress with small brush, many particles are dead
     renderStrokeIncrement(ctx, cloud, samples, {
-      fromProgress: 0.8,
-      toProgress: 0.9,
-      brushRadius: 2,
+      fromProgress: 0.2,
+      toProgress: 0.4,
+      brushRadius: 10,
       color: 'white',
       seed: 42,
     });
 
-    // Full cloud would have 30 strokes — with deaths, should have fewer
     const strokes = ctx.ops.filter(o => o.type === 'stroke');
-    expect(strokes.length).toBeLessThan(30);
+    expect(strokes.length).toBe(0);
   });
 
   it('connects to previous segment with moveTo at fromIndex', () => {

@@ -1,7 +1,21 @@
 import { generateEnso, estimateLength } from './void/enso-path.js';
 import { samplePath } from './void/path-sampling.js';
 import { createParticleCloud } from './void/particle-cloud.js';
+import { createInkPool } from './void/ink-pool.js';
 import { renderParticles, renderStrokeIncrement } from './void/particle-renderer.js';
+
+export function strokeTiming(rawProgress) {
+  const t = Math.max(0, Math.min(1, rawProgress));
+  if (t <= 0.12) {
+    return 0.02 * Math.pow(t / 0.12, 3);
+  }
+  if (t <= 0.38) {
+    const p = (t - 0.12) / 0.26;
+    return 0.02 + 0.38 * p * p;
+  }
+  const p = (t - 0.38) / 0.62;
+  return 0.4 + 0.6 * (1 - Math.pow(1 - p, 3));
+}
 
 /** @type {import('../main.js').Theme} */
 export default {
@@ -23,6 +37,7 @@ export default {
     this._ensoLength = estimateLength(this._ensoPath);
     this._ensoSeed = Math.floor(Math.random() * 100000);
     this._brushTip = null;
+    this._inkPool = null;
 
     // Offscreen buffer for accumulative ink
     this._createBuffer();
@@ -45,6 +60,7 @@ export default {
     this._paperTexture = null;
     this._lastStrokeProgress = 0;
     this._cloud = null;
+    this._inkPool = null;
     this._createBuffer();
   },
 
@@ -56,14 +72,11 @@ export default {
 
     // Phase 1: pure black (0 - 0.5s)
     // Phase 2: noise awakens (0.5 - 1.0s)
-    // Phase 3: drop forms (1.0 - 1.5s) — particles grow in place
-    // Phase 4: stroke traces (1.5 - 4.0s) — particles trace ensō, dying off
-    // Phase 5: static forever
+    // Phase 3: stroke traces (1.0 - 4.2s) with slow contact, acceleration,
+    // and a long decelerating finish.
 
-    const dropStart = 1.0;
-    const dropDuration = 0.5;
-    const strokeStart = 1.5;
-    const strokeDuration = 2.5;
+    const strokeStart = 1.0;
+    const strokeDuration = 3.2;
 
     // Background: living black
     if (elapsed > 0.5 && !this._drawn) {
@@ -78,23 +91,16 @@ export default {
     }
 
     // Particle stroke animation
-    if (elapsed >= dropStart) {
-      // Drop formation progress (0-1)
-      const dropProgress = Math.min((elapsed - dropStart) / dropDuration, 1);
-
-      // Stroke progress (0-1), starts after drop is formed
-      let strokeProgress = 0;
-      if (elapsed >= strokeStart) {
-        const strokeElapsed = elapsed - strokeStart;
-        strokeProgress = Math.min(strokeElapsed / strokeDuration, 1);
-      }
+    if (elapsed > strokeStart) {
+      const rawProgress = Math.min((elapsed - strokeStart) / strokeDuration, 1);
+      const strokeProgress = strokeTiming(rawProgress);
 
       if (strokeProgress >= 1 && !this._drawn) {
         this._drawn = true;
       }
 
       // Render onto offscreen buffer (accumulative)
-      this._renderToBuffer(dropProgress, strokeProgress);
+      this._renderToBuffer(strokeProgress);
 
       // Composite: background + buffer
       this._fill();
@@ -119,6 +125,7 @@ export default {
     this._bufferCanvas = null;
     this._bufferCtx = null;
     this._cloud = null;
+    this._inkPool = null;
   },
 
   reducedMotion() {
@@ -126,10 +133,9 @@ export default {
     this._fill();
     // Simulate progressive rendering to accumulate ink in buffer
     const steps = 20;
-    for (let i = 0; i <= steps; i++) {
+    for (let i = 1; i <= steps; i++) {
       const strokeProgress = i / steps;
-      const dropProgress = Math.min(1, strokeProgress * 3); // drop finishes quickly
-      this._renderToBuffer(dropProgress, strokeProgress);
+      this._renderToBuffer(strokeProgress);
     }
     if (this._bufferCanvas && this._bufferCtx) {
       this._ctx.drawImage(this._bufferCanvas, 0, 0);
@@ -199,7 +205,14 @@ export default {
     return this._cloud;
   },
 
-  _renderToBuffer(dropProgress, strokeProgress) {
+  _getInkPool(brushRadius) {
+    if (!this._inkPool) {
+      this._inkPool = createInkPool((this._ensoSeed || 0) + 101, brushRadius);
+    }
+    return this._inkPool;
+  },
+
+  _renderToBuffer(strokeProgress) {
     // Use buffer ctx if available, fallback to main ctx (test environments)
     const ctx = this._bufferCtx || this._ctx;
     if (!ctx || !this._ensoPath) return;
@@ -210,42 +223,33 @@ export default {
 
     const brushRadius = Math.min(this._w, this._h) * 0.025;
     const cloud = this._getCloud();
+    const inkPool = this._getInkPool(brushRadius);
     const color = 'rgba(240, 240, 240, 1)';
     const seed = this._ensoSeed || 0;
 
-    if (strokeProgress <= 0) {
-      // Drop phase: clear buffer and redraw full drop (animated growing)
+    if (strokeProgress <= 0) return;
+
+    // Stroke phase: draw only the NEW segment incrementally.
+    if (this._lastStrokeProgress <= 0) {
       ctx.clearRect(0, 0, this._w, this._h);
       renderParticles(ctx, cloud, this._pathSamples, {
         progress: 0,
-        dropProgress,
+        dropProgress: 1,
         brushRadius,
         color,
         seed,
+        inkPool,
       });
-    } else {
-      // Stroke phase: draw only the NEW segment incrementally
-      if (this._lastStrokeProgress <= 0) {
-        // First stroke frame: redraw drop at full, then start incremental
-        ctx.clearRect(0, 0, this._w, this._h);
-        renderParticles(ctx, cloud, this._pathSamples, {
-          progress: 0,
-          dropProgress: 1,
-          brushRadius,
-          color,
-          seed,
-        });
-      }
-
-      renderStrokeIncrement(ctx, cloud, this._pathSamples, {
-        fromProgress: this._lastStrokeProgress,
-        toProgress: strokeProgress,
-        brushRadius,
-        color,
-        seed,
-      });
-
-      this._lastStrokeProgress = strokeProgress;
     }
+
+    renderStrokeIncrement(ctx, cloud, this._pathSamples, {
+      fromProgress: this._lastStrokeProgress,
+      toProgress: strokeProgress,
+      brushRadius,
+      color,
+      seed,
+    });
+
+    this._lastStrokeProgress = strokeProgress;
   },
 };
